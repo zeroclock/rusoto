@@ -24,6 +24,7 @@ pub struct PostPolicy<'a> {
     region: Option<&'a Region>,
     access_key_id: Option<&'a str>,
     secret_access_key: Option<&'a str>,
+    session_token: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -149,6 +150,16 @@ impl<'a> PostPolicy<'a> {
         self
     }
 
+    /// Set session token
+    pub fn set_session_token(mut self, session_token: &'a str) -> Self {
+        if session_token.is_empty() {
+            return self;
+        }
+
+        self.session_token = Some(session_token);
+        self
+    }
+
     /// Set content-type policy condition and update the form data
     #[allow(dead_code)]
     pub fn set_content_type(mut self, content_type: &'a str) -> Self {
@@ -251,6 +262,9 @@ impl<'a> PostPolicy<'a> {
         conditions.push(Condition(("eq", "$x-amz-date", &current_time_fmted)));
         conditions.push(Condition(("eq", "$x-amz-algorithm", "AWS4-HMAC-SHA256")));
         conditions.push(Condition(("eq", "$x-amz-credential", &x_amz_credential)));
+        if let Some(token) = self.session_token {
+            conditions.push(Condition(("eq", "$x-amz-security-token", &token)));
+        }
 
         let min_length_as_string: String;
         let max_length_as_string: String;
@@ -301,6 +315,10 @@ impl<'a> PostPolicy<'a> {
             .insert("x-amz-credential".to_string(), x_amz_credential);
         self.form_data
             .insert("x-amz-signature".to_string(), x_amz_signature);
+        if let Some(token) = self.session_token {
+            self.form_data
+                .insert("x-amz-security-token".to_string(), token.to_string());
+        }
 
         let signed_request = SignedRequest::new("GET", "s3", &region, "/");
 
